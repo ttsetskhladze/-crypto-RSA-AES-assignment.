@@ -1,0 +1,115 @@
+Real-World Cryptography Lab - TLS Analysis Report
+Zurab Tabatadze
+November 06, 2025
+
+=== TLS Connection to google.com ===
+
+OpenSSL Command Used:
+openssl s_client -connect google.com:443 -servername google.com -tls1_3
+
+Key Results:
+- Protocol: TLS 1.3
+- Cipher Suite: TLS_AES_256_GCM_SHA384 (AES-256-GCM + SHA384 HMAC)
+- Verify return code: 20 (unable to get local issuer certificate) → Normal on standalone Windows OpenSSL (missing root CA bundle)
+- In browsers: Google Trust Services roots pre-trusted → Verify return:0 (ok)
+- OCSP Status: good (stapled response)
+- Connection: Successful, forward secrecy via ECDHE (X25519)
+
+=== Server Certificate Details (google_cert.txt) ===
+
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number: f8:b4:aa:3a:b0:57:2e:7f:10:1a:9c:37:1a:fe:83:6b
+        Signature Algorithm: sha256WithRSAEncryption
+        Issuer: C=US, O=Google Trust Services, CN=WR2
+        Validity
+            Not Before: Oct 13 08:37:33 2025 GMT
+            Not After : Jan 5 08:37:32 2026 GMT
+        Subject: CN=*.google.com
+        Subject Public Key Info:
+            Public Key Algorithm: id-ecPublicKey (ECDSA)
+            Public-Key: (256 bit) prime256v1 (P-256)
+        X509v3 Extensions:
+            Key Usage: Digital Signature
+            Extended Key Usage: TLS Web Server Authentication
+            Subject Alternative Name: 100+ domains (*.google.com, *.youtube.com, *.android.com, *.gstatic.com, etc.)
+            Certificate Transparency: 2 SCTs (Logged in multiple logs)
+            OCSP URI: http://o.pki.goog/wr2
+            CRL URI: http://c.pki.goog/wr2/...
+
+=== TLS 1.3 Handshake Step-by-Step (from -msg output) ===
+
+#1  Client Hello
+    - Supported versions: TLS 1.3
+    - Cipher suites: TLS_AES_256_GCM_SHA384, TLS_CHACHA20_POLY1305_SHA256, TLS_AES_128_GCM_SHA256
+    - Extensions: SNI (google.com), ALPN (h2,http/1.1), key_share (X25519), supported_groups
+
+#2  Server Hello
+    - Selected version: TLS 1.3
+    - Selected cipher: TLS_AES_256_GCM_SHA384
+    - Key share: X25519 (ephemeral)
+
+#3  Encrypted Extensions
+    - ALPN: h2
+    - Server name indication acknowledged
+
+#4  Certificate (encrypted)
+    - Chain: *.google.com → WR2 → Google Trust Services Root
+
+#5  Certificate Verify
+    - Signature: ECDSA-SHA256
+
+#6  Finished
+    - HMAC verification (both sides)
+
+Client Finished → Full encryption established in <50ms
+
+=== MITM Protection Mechanisms ===
+
+1. Certificate Authentication
+   - Trusted CA chain (Google Trust Services pre-installed in Windows/Chrome/Edge)
+   - Root: GTS Root R1/R2/R3/R4
+
+2. Revocation Checking
+   - OCSP Stapling (real-time, no privacy leak)
+   - CRL fallback
+
+3. Forward Secrecy / Perfect Forward Secrecy
+   - ECDHE key exchange → Session keys destroyed after session
+   - Even if server private key leaked, past traffic safe
+
+4. Certificate Transparency
+   - 2 SCTs from different logs → Prevents rogue certificate issuance
+
+5. Modern Protections
+   - HSTS Preload (forces HTTPS, prevents SSL stripping)
+   - No RSA key transport (TLS 1.3 removes it)
+   - Encrypted certificates (privacy)
+   - AEAD ciphers only (no CBC)
+
+=== How TLS Secures HTTPS Communication ===
+
+- Authentication: Server proves identity via ECDSA-signed certificate from trusted CA
+- Confidentiality: All data encrypted with ephemeral AES-256-GCM keys
+- Integrity: AEAD (Authenticated Encryption) prevents tampering
+- Availability: Short handshake, 0-RTT possible for repeat connections
+- Non-repudiation: Certificate Verify signature
+
+Hybrid Cryptography in Action:
+- Asymmetric (ECDHE/ECDSA) for key exchange & auth
+- Symmetric (AES-256-GCM) for bulk data encryption
+
+=== Screenshots Included in /screenshots/ ===
+
+- openssl_s_client_google.png          → Full s_client output (cipher, connection)
+- google_cert_details.png         → Certificate details from google_cert.txt
+- tls_handshake_messages.png      → Detailed handshake messages (-msg flag)
+- (optional) wireshark_tls.png    → Packet capture if performed
+
+=== Conclusion ===
+
+google.com uses state-of-the-art TLS 1.3 with ECDSA P-256, AES-256-GCM, perfect forward secrecy, and full modern protections. 
+No vulnerabilities found. Implementation follows best practices (Google Trust Services, CT, OCSP stapling, HSTS).
+
+All files generated: message.txt, RSA/AES files, aes_key.bin, aes_iv.bin, rsa_vs_aes.txt, google_cert.txt, screenshots.
