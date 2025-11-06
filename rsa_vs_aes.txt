@@ -1,0 +1,22 @@
+RSA vs AES - Performance and Use-Case Differences
+
+Performance:
+- RSA: Extremely slow for large data. With 4096-bit key and PKCS1 padding, max plaintext ~446 bytes. Encryption takes ~50-200ms.
+- AES-256: Hardware-accelerated (AES-NI), encrypts gigabytes per second. No practical size limit.
+
+Use Cases:
+RSA (Asymmetric):
+• Key exchange during TLS handshake
+• Digital signatures and certificates
+• Encrypting small data (e.g. symmetric keys only)
+• No shared secret required initially
+
+AES-256 (Symmetric):
+• Bulk data encryption (files, disks, VPNs)
+• Streaming encryption (HTTPS data, SSH)
+• Full-disk encryption (BitLocker, LUKS)
+• Requires secure key exchange (usually via RSA/ECDHE)
+
+Real-World: Hybrid encryption
+→ Generate random AES key → Encrypt data with AES → Encrypt AES key with RSA
+Used in: PGP, S/MIME, TLS <1.3 (RSA key transport), secure messaging apps.
